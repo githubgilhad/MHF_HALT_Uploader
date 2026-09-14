@@ -1,0 +1,53 @@
+# makefile
+# vim: fileencoding=utf-8:nomodified:nowrap:textwidth=0:foldmethod=marker:foldcolumn=4:syntax=make:filetype=make:ruler:showcmd:lcs=tab\:|- list
+
+BLACK:=30
+RED:=31
+GREEN:=32
+YELLOW:=33
+BLUE:=34
+MAGENTA:=35
+CYAN:=36
+WHITE:=37
+BRIGHTBLACK:=90
+BRIGHTRED:=91
+BRIGHTGREEN:=92
+BRIGHTYELLOW:=93
+BRIGHTBLUE:=94
+BRIGHTMAGENTA:=95
+BRIGHTCYAN:=96
+BRIGHTWHITE:=97
+
+
+BG_BLACK:=40
+BG_RED:=41
+BG_GREEN:=42
+BG_YELLOW:=43
+BG_BLUE:=44
+BG_MAGENTA:=45
+BG_CYAN:=46
+BG_WHITE:=47
+BG_BRIGHTBLACK:=100
+BG_BRIGHTRED:=101
+BG_BRIGHTGREEN:=102
+BG_BRIGHTYELLOW:=103
+BG_BRIGHTBLUE:=104
+BG_BRIGHTMAGENTA:=105
+BG_BRIGHTCYAN:=106
+BG_BRIGHTWHITE:=107
+
+RESET:=0
+BOLD:=1
+#BLINK:=5
+#FASTBLINK:=6
+INVERT:=7
+NO_BOLD:=22
+#NO_BLINK:=25
+NO_INVERT:=27
+
+COLORS:="\\e["
+SED_COLORS:="\\x1b["
+
+#$(info $(shell echo -e "ahoj"))
+#Y:=$(shell echo -e "$(COLORS)$(BG_BLUE);$(RED);$(BOLD)m Bold $(COLORS)$(NO_BOLD)m and usual $(COLORS)$(INVERT)m and inverted$(COLORS)$(NO_INVERT)m  Red on Blue $(COLORS)$(RESET);mthen Normal again" )
+#$(info $(Y))

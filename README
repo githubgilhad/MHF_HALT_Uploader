@@ -1,1 +1,6 @@
 Simple tool to upload RAM on HALT condition of Comp24
+
+Based on Arduino/FORTH/memxFORTH-asm/SW2
+* 9f012bd PUSHXxx, POPXxx
+
+Uses build system and libs/Serial.RTS/usart0/ library
