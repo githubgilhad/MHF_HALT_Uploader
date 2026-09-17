@@ -189,7 +189,7 @@ WORDS: $(TARGET).dis  sizecheck		## collects all definitions of words to WORDS.l
 	$(Q)find src -name "*.S" -exec grep -h "^DEF" {} \;|sort>WORDS.list
 
 monitor:	## open monitor
-	picocom -b 115200 --flow h --noreset -s cat --quiet $(PORT)
+	picocom -b 115200 --flow h --noreset -s ccat --quiet $(PORT)
 
 upload_monitor: upload monitor	## upload code and open monitor
 
