@@ -86,7 +86,7 @@ TEXT uint16_t RX0_ReadHex4() {	// {{{ r24=value, r25==0 - OK, ==1 problem, BLOCK
 	uint16_t ch;
 //	ch = RX0_Read();
 	while (1) {
-		smallDelay();	// DELETEME : remove XXX
+//		smallDelay();	// DELETEME : remove XXX
 		ch = RX0_Read();
 		if (!(ch >> 8)) continue; // Pokud r25 != 0
 		ch = ch & 0xFF;
@@ -119,38 +119,75 @@ TEXT uint8_t SkipLine(uint16_t x, char *p) {	// {{{ if x > 0xFF, print *p, skip 
 	};
 	return 0;
 }	// }}}
+uint16_t ext_addr;
 TEXT void help() {	// {{{
-	TX0_WriteStr("MHF_HALT_Uploader\r\n");
-	TX0_WriteStr(VERSION_STRING "\r\n");
-	TX0_WriteStr("* " VERSION_COMMIT VERSION_MESSAGE "\r\n");
+	TX0_WriteStr("  --==## MHF_HALT_Uploader ##==--\r\n");
+	TX0_WriteStr("ver. " VERSION_STRING " from " BUILD_DATE " " BUILD_TIME  "\r\n");
+	TX0_WriteStr("git * " VERSION_COMMIT " - " VERSION_MESSAGE "\r\n");
 	TX0_WriteStr("	h H ? - this help\r\n");
 	TX0_WriteStr("	r R   - release from A_HALT (~Reset/Reboot)\r\n");
 	TX0_WriteStr("	a A   - attach by A_HALT\r\n");
 	TX0_WriteStr("	:     - rest of line is I32HEX for Comp24 RAM\r\n");
+	TX0_WriteStr("	x X   - Xcopy = copy chars to output until next x/X\r\n");
+	TX0_WriteStr("Extended Memory: ");TX0_WriteHex8(ext_addr); TX0_WriteStr("; ");
+	TX0_WriteStr("SHARE GRANTED: ");
+	if(X_SHARE_GRANTED_IN()) {
+		TX0_WriteStr("Yes");
+	} else {
+		TX0_WriteStr("No"); 
+	};
+	TX0_WriteStr("; ");
 	if (X_HALT_PEEK()) {
 		TX0_WriteStr("HALT NOT active\r\n");
 	} else {
 		TX0_WriteStr("HALT Active\r\n");
 	};
 }	// }}}
-uint16_t ext_addr;
-void Attach() {	// {{{
+TEXT void Attach() {	// {{{
+	TX0_WriteStr("Attach starting\r\n");
 	if (X_HALT_PEEK()) {
 		TX0_WriteStr("### Attach: X_HALT is High!!! \r\n");
 	};
-	X_HALT_OFF();
+	X_HALT_DOWN();	// preberem spravu X_HALT
+	X_READ_UP();	// nechceme nahodne prepsat neco
+	// -----
+	X_SHARE_SELECT_DOWN();	// Spravujeme SystemRAM (nikoli SharedRAM)
+	X_SHARE_REQUEST_UP();	// Chceme pristup (k vecem obecne)
+	TX0_WriteStr("Attach waiting\r\n");
+	if (false) // DELETEME
+	while(! X_SHARE_GRANTED_IN()) {		// dokud nedostaneme pristup cekame
+		smallDelay();
+	};			// nyni mam X_SHARE_GRANTED a tudíž
+				// vzhledem k X_SHARE_SELECT == 0 gates jsou OPEN, address smerem MHF->CPU, data dle X_READ (1=CPU->MHF)
+				// X_SHARE_COOP zde nepouzivame
+	ext_addr=0;
+
 	TX0_WriteStr("Attached\r\n");
 }	// }}}
-void Release() {	// {{{
-	X_HALT_ON();
+TEXT void Release() {	// {{{
+	X_SHARE_REQUEST_DOWN();	// vzdame se pristupu
+	X_HALT_UP();		// a odlogujeme se z HALTu
+	ext_addr=0;
 	TX0_WriteStr("Released\r\n");
 }	// }}}
 TEXT void IHEX() {	// {{{
 	uint16_t len,type, crc, ch, crc_data;
 	uint32_t addr;
 	TX0_WriteStr(":");
-	if (SkipLine(X_HALT_PEEK()?0x100:0, "Not in HALT mode!!!")) {return;}
+	if (SkipLine(X_HALT_PEEK()?0x100:0, "Not in HALT mode!!!")) return;	// HALT je active LOW
 	
+	// ono to uz asi mame nastavene spravne, ale ted si to overime pred zapisem:
+	X_READ_UP();	// nechceme nahodne prepsat neco
+	// -----
+	X_SHARE_SELECT_DOWN();	// Spravujeme SystemRAM (nikoli SharedRAM)
+	X_SHARE_REQUEST_UP();	// Chceme pristup (k vecem obecne)
+	if (false) // DELETEME
+	while(! X_SHARE_GRANTED_IN()) {		// dokud nedostaneme pristup cekame
+		smallDelay();
+	};			// nyni mam X_SHARE_GRANTED a tudíž
+				// vzhledem k X_SHARE_SELECT == 0 gates jsou OPEN, address smerem MHF->CPU, data dle X_READ (1=CPU->MHF)
+				// X_SHARE_COOP zde nepouzivame
+	// OK, jsme pripraveni zapisovat, pokud to bude potreba
 	len = RX0_ReadHex8();
 	if (SkipLine(len,"Bad len")) return;
 	TX0_WriteHex8(len);
@@ -175,12 +212,63 @@ TEXT void IHEX() {	// {{{
 	crc_data=(crc_data+type) & 0xFF;
 	TX0_Write(' ');
 	
+	// data type:
+	switch(type) {
+		case 00: // Data
+			break;
+		case 01: // End of File
+			SkipLine(0x100,"End of File - OK");
+			return;
+			break;
+		case 02: // Extended Segment Address
+			SkipLine(0x100,"02 Extended Segment Address - unsupported");
+			return;
+			break;
+		case 03: // Start Segment Address
+			SkipLine(0x100,"03 Start Segment Address - unsupported");
+			return;
+			break;
+		case 04: // Data
+			ch = RX0_ReadHex8();
+			TX0_WriteHex8(ch);
+			if (SkipLine((ch==0)?0:0x100,"04 Extended Linear Address - must be 0/1 - Bad data[0]")) return;
+			ch = RX0_ReadHex8();
+			TX0_WriteHex8(ch);
+			if (SkipLine((ch<2)?0:0x100,"04 Extended Linear Address - must be 0/1 - Bad data[1]")) return;
+			ext_addr = ch;
+			SkipLine(0x100,"04 Extended Linear Address - OK");
+			return;
+			break;
+		case 05: // Start Linear Address
+			SkipLine(0x100,"05 Start Linear Address - unsupported");
+			return;
+			break;
+		default: // other
+			SkipLine(0x100,"unknonw number - unsupported");
+			return;
+			break;
+	};
+	// jedina sance se dostat sem jsou 00 - Data
+	
 	for (uint16_t i=0; i<len;i++) {
 		ch = RX0_ReadHex8();
 		if (SkipLine(ch,"Bad data")) return;
 		TX0_WriteHex8(ch);
 		crc_data=(crc_data+ch) & 0xFF;
+		if (ext_addr) {
+			X_16_UP();
+		} else {
+			X_16_DOWN();
+		};
 		// write ch to (ext_addr,addr) in RAM
+		X_READ_UP();	// safely set addr
+		ADDR_OUT(addr);
+		X_READ_DOWN();	// write anything
+		DATA_OUT(ch);	// write real data
+		NOP();
+		X_READ_UP();	// read back, safe conflict on bus
+		DATA_HiZ();
+		ADDR_HiZ();
 		addr++;
 	};
 	TX0_Write(' ');

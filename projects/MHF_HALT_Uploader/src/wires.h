@@ -5,13 +5,13 @@
 
 #include <stdbool.h>
 
-#define WIRE_ON(name,port,pin) bool name##_ON();
-#define WIRE_OFF(name,port,pin) bool name##_OFF();
+#define WIRE_UP(name,port,pin) bool name##_UP();
+#define WIRE_DOWN(name,port,pin) bool name##_DOWN();
 #define WIRE_IN(name,port,pin) bool name##_IN();
 #define WIRE_HiZ(name,port,pin) bool name##_HiZ();
 #define WIRE_PEEK(name,port,pin) bool name##_PEEK();
-#define WIRE(name,port,pin) WIRE_ON(name,port,pin) \
-	WIRE_OFF(name,port,pin) \
+#define WIRE(name,port,pin) WIRE_UP(name,port,pin) \
+	WIRE_DOWN(name,port,pin) \
 	WIRE_IN(name,port,pin) \
 	WIRE_HiZ(name,port,pin) \
 	WIRE_PEEK(name,port,pin) 
@@ -34,3 +34,4 @@ void DATA_OUT(uint8_t val);
 void ADDR_HiZ();
 void ADDR_OUT(uint16_t val);
 void smallDelay();
+void NOP(); // does nothing

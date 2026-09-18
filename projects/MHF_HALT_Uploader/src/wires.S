@@ -2,19 +2,19 @@
 #include <avr/io.h>
 
 
-#define WIRE_ON(name,port,pin) .global name##_ON $ name##_ON: $ sbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
-#define WIRE_OFF(name,port,pin) .global name##_OFF $ name##_OFF: $ cbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
+#define WIRE_UP(name,port,pin) .global name##_UP $ name##_UP: $ sbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
+#define WIRE_DOWN(name,port,pin) .global name##_DOWN $ name##_DOWN: $ cbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
 #define WIRE_IN(name,port,pin) .global name##_IN $ name##_IN: $ cbi _SFR_IO_ADDR(PORT##port),pin $ cbi _SFR_IO_ADDR(DDR##port),pin $ clr r24 $ sbic _SFR_IO_ADDR(PIN##port),pin $ inc r24 $ ret $ 
 #define WIRE_HiZ(name,port,pin) .global name##_HiZ $ name##_HiZ: $ cbi _SFR_IO_ADDR(PORT##port),pin $ cbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
 #define WIRE_PEEK(name,port,pin) .global name##_PEEK $ name##_PEEK: $ clr r24 $ sbic _SFR_IO_ADDR(PIN##port),pin $ inc r24 $ ret $ 
-#define WIRE(name,port,pin) WIRE_ON(name,port,pin) \
-	WIRE_OFF(name,port,pin) \
+#define WIRE(name,port,pin) WIRE_UP(name,port,pin) \
+	WIRE_DOWN(name,port,pin) \
 	WIRE_IN(name,port,pin) \
 	WIRE_HiZ(name,port,pin) \
 	WIRE_PEEK(name,port,pin) 
 
-; WIRE_ON set pin to OUTPUT and it value to HIGH
-; WIRE_OFF set pin to OUTPUT and it value to LOW
+; WIRE_UP set pin to OUTPUT and it value to HIGH
+; WIRE_DOWN set pin to OUTPUT and it value to LOW
 ; WIRE_IN set pin to INPUT and read it value
 ; WIRE_PEEK not set pin to anything, just read it value (can be used on both INPUT and OUTPUT pins)
 
@@ -100,5 +100,12 @@ smallDelay:
 	brne	.L_smallDelay_loop
 	dec	r23
 	brne	.L_smallDelay_loop
+	ret
+; }}}
+
+; void NOP(); // does nothing {{{
+.global NOP
+NOP:
+	nop
 	ret
 ; }}}
