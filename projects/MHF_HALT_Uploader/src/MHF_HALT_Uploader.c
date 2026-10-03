@@ -93,6 +93,11 @@ TEXT uint16_t RX0_ReadHex4() {	// {{{ r24=value, r25==0 - OK, ==1 problem, BLOCK
 		if ((ch >='0') && (ch <='9')) return ch - '0';
 		if ((ch >='a') && (ch <='f')) return ch - 'a' + 10;
 		if ((ch >='A') && (ch <='F')) return ch - 'A' + 10;
+		TX0_WriteStr("  !>");
+		TX0_WriteHex8(ch);
+		TX0_Write(' ');
+		TX0_WriteA(ch);
+		TX0_Write(' ');
 		return 0x100;
 	};
 }	// }}}
@@ -108,6 +113,8 @@ TEXT uint8_t SkipLine(uint16_t x, char *p) {	// {{{ if x > 0xFF, print *p, skip 
 	uint16_t ch;
 	if (x > 0xFF) {
 		TX0_WriteStr(" ## ");
+		TX0_WriteHex16(x);
+		TX0_WriteStr(" ## ");
 		TX0_WriteStr(p);
 		TX0_WriteStr("\r\n");
 		while (1) {
@@ -120,6 +127,7 @@ TEXT uint8_t SkipLine(uint16_t x, char *p) {	// {{{ if x > 0xFF, print *p, skip 
 	return 0;
 }	// }}}
 uint16_t ext_addr;
+uint8_t line_in[256],line_check[256];
 TEXT void help() {	// {{{
 	TX0_WriteStr("  --==## MHF_HALT_Uploader ##==--\r\n");
 	TX0_WriteStr("ver. " VERSION_STRING " from " BUILD_DATE " " BUILD_TIME  "\r\n");
@@ -150,17 +158,23 @@ TEXT void Attach() {	// {{{
 	};
 	X_HALT_DOWN();	// preberem spravu X_HALT
 	X_READ_UP();	// nechceme nahodne prepsat neco
+	// ---
+	DATA_HiZ();	// nechceme psat
+	ADDR_HiZ();	// a nezajima nas adresa
 	// -----
 	X_SHARE_SELECT_DOWN();	// Spravujeme SystemRAM (nikoli SharedRAM)
-	X_SHARE_REQUEST_UP();	// Chceme pristup (k vecem obecne)
+	X_SHARE_REQUEST_DOWN();	// Nechceme pristup (k vecem obecne) ted hned
 	TX0_WriteStr("Attach waiting\r\n");
-	if (false) // DELETEME
+	ADDR_OUT(0);		// zero page data
+	X_SHARE_REQUEST_UP();	// zkusime cist nahodna data, zda mame pravo
+//	if (false) // DELETEME
 	while(! X_SHARE_GRANTED_IN()) {		// dokud nedostaneme pristup cekame
 		smallDelay();
 	};			// nyni mam X_SHARE_GRANTED a tudíž
 				// vzhledem k X_SHARE_SELECT == 0 gates jsou OPEN, address smerem MHF->CPU, data dle X_READ (1=CPU->MHF)
 				// X_SHARE_COOP zde nepouzivame
 	ext_addr=0;
+	X_SHARE_REQUEST_DOWN(); // fajn, vlastne nic nechceme
 
 	TX0_WriteStr("Attached\r\n");
 }	// }}}
@@ -171,8 +185,8 @@ TEXT void Release() {	// {{{
 	TX0_WriteStr("Released\r\n");
 }	// }}}
 TEXT void IHEX() {	// {{{
-	uint16_t len,type, crc, ch, crc_data;
-	uint32_t addr;
+	uint16_t len,type, crc, ch, crc_data,crc_head;
+	uint32_t addr,addr_saved;
 	TX0_WriteStr(":");
 	if (SkipLine(X_HALT_PEEK()?0x100:0, "Not in HALT mode!!!")) return;	// HALT je active LOW
 	
@@ -181,7 +195,7 @@ TEXT void IHEX() {	// {{{
 	// -----
 	X_SHARE_SELECT_DOWN();	// Spravujeme SystemRAM (nikoli SharedRAM)
 	X_SHARE_REQUEST_UP();	// Chceme pristup (k vecem obecne)
-	if (false) // DELETEME
+//	if (false) // DELETEME
 	while(! X_SHARE_GRANTED_IN()) {		// dokud nedostaneme pristup cekame
 		smallDelay();
 	};			// nyni mam X_SHARE_GRANTED a tudíž
@@ -250,26 +264,20 @@ TEXT void IHEX() {	// {{{
 	};
 	// jedina sance se dostat sem jsou 00 - Data
 	
+	if (ext_addr) {
+		X_16_UP();
+	} else {
+		X_16_DOWN();
+	};
+	crc_head=crc_data;
+	addr_saved=addr;
+	// read
 	for (uint16_t i=0; i<len;i++) {
 		ch = RX0_ReadHex8();
 		if (SkipLine(ch,"Bad data")) return;
 		TX0_WriteHex8(ch);
 		crc_data=(crc_data+ch) & 0xFF;
-		if (ext_addr) {
-			X_16_UP();
-		} else {
-			X_16_DOWN();
-		};
-		// write ch to (ext_addr,addr) in RAM
-		X_READ_UP();	// safely set addr
-		ADDR_OUT(addr);
-		X_READ_DOWN();	// write anything
-		DATA_OUT(ch);	// write real data
-		NOP();
-		X_READ_UP();	// read back, safe conflict on bus
-		DATA_HiZ();
-		ADDR_HiZ();
-		addr++;
+		line_in[i]=ch;
 	};
 	TX0_Write(' ');
 	crc = RX0_ReadHex8();
@@ -280,6 +288,77 @@ TEXT void IHEX() {	// {{{
 		TX0_WriteStr(" ## CRC mismatch:");
 		TX0_WriteHex8(crc_data);
 		};
+	TX0_Write(' ');
+	// ascii
+	TX0_Write('\'');
+	for (uint16_t i=0; i<len;i++) {
+		TX0_WriteA(line_in[i]);
+	};
+	TX0_Write('\'');
+	TX0_Write(' ');
+	TX0_Write(' ');
+	TX0_Write('W');
+	// write
+	for (uint16_t i=0; i<len;i++) {
+		ch = line_in[i];
+		// write ch to (ext_addr,addr) in RAM
+		X_READ_UP();	// safely set addr
+		ADDR_OUT(addr);
+		NOP();
+		NOP();
+		NOP();
+		X_READ_DOWN();	// write anything
+		NOP();
+		NOP();
+		NOP();
+		DATA_OUT(ch);	// write real data
+		NOP();
+		NOP();
+		NOP();
+		X_READ_UP();	// read back, safe conflict on bus
+		DATA_HiZ();
+		ADDR_HiZ();
+		addr++;
+	};
+	TX0_Write('C');
+	TX0_Write(' ');
+	// check
+	X_READ_UP();
+	crc_data=crc_head;
+	addr=addr_saved;
+	for (uint16_t i=0; i<len;i++) {
+		X_READ_UP();
+		ADDR_OUT(addr);
+		NOP();
+		NOP();
+		NOP();
+		ch = DATA_IN();
+		NOP();
+		NOP();
+		NOP();
+		TX0_WriteHex8(ch);
+		crc_data=(crc_data+ch) & 0xFF;
+		line_check[i]=ch;
+		addr++;
+	};
+	TX0_Write(' ');
+	// ascii
+	TX0_Write('\'');
+	for (uint16_t i=0; i<len;i++) {
+		TX0_WriteA(line_check[i]);
+	};
+	TX0_Write('\'');
+	TX0_Write(' ');
+	crc_data=(crc_data+crc) & 0xFF;
+	if (crc_data) {
+		TX0_WriteStr(" ## CRC mismatch:");
+		TX0_WriteHex8(crc_data);
+		TX0_Write('(');
+		TX0_WriteHex8(~crc_data);
+		TX0_Write(')');
+	} else {
+		TX0_WriteStr(" ## CRC OK");
+	};
 
 //	TX0_WriteStr("\r\n");
 

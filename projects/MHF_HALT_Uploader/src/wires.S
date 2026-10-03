@@ -2,10 +2,10 @@
 #include <avr/io.h>
 
 
-#define WIRE_UP(name,port,pin) .global name##_UP $ name##_UP: $ sbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
-#define WIRE_DOWN(name,port,pin) .global name##_DOWN $ name##_DOWN: $ cbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
+#define WIRE_UP(name,port,pin) .global name##_UP $ name##_UP: $ sbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ sbi _SFR_IO_ADDR(PORT##port),pin $ ret $ 
+#define WIRE_DOWN(name,port,pin) .global name##_DOWN $ name##_DOWN: $ cbi _SFR_IO_ADDR(PORT##port),pin $ sbi _SFR_IO_ADDR(DDR##port),pin $ cbi _SFR_IO_ADDR(PORT##port),pin $ ret $ 
 #define WIRE_IN(name,port,pin) .global name##_IN $ name##_IN: $ cbi _SFR_IO_ADDR(PORT##port),pin $ cbi _SFR_IO_ADDR(DDR##port),pin $ clr r24 $ sbic _SFR_IO_ADDR(PIN##port),pin $ inc r24 $ ret $ 
-#define WIRE_HiZ(name,port,pin) .global name##_HiZ $ name##_HiZ: $ cbi _SFR_IO_ADDR(PORT##port),pin $ cbi _SFR_IO_ADDR(DDR##port),pin $ ret $ 
+#define WIRE_HiZ(name,port,pin) .global name##_HiZ $ name##_HiZ: $ cbi _SFR_IO_ADDR(PORT##port),pin $ cbi _SFR_IO_ADDR(DDR##port),pin $ cbi _SFR_IO_ADDR(PORT##port),pin $ ret $ 
 #define WIRE_PEEK(name,port,pin) .global name##_PEEK $ name##_PEEK: $ clr r24 $ sbic _SFR_IO_ADDR(PIN##port),pin $ inc r24 $ ret $ 
 #define WIRE(name,port,pin) WIRE_UP(name,port,pin) \
 	WIRE_DOWN(name,port,pin) \
@@ -21,7 +21,7 @@
 .section .text.wires
 
 WIRE(X_16,E,3)
-WIRE(X_HALT,E,4)
+WIRE(X_HALT,E,5)
 WIRE(X_READ,D,7)
 WIRE(X_SHARE_COOP,D,6)
 WIRE(X_SHARE_GRANTED,D,4)
@@ -45,6 +45,7 @@ DATA_IN:
 	clr r22
 	sts DDRL,r22
 	sts PORTL,r22
+	nop
 	lds r24, PINL
 	ret
 
@@ -54,6 +55,7 @@ DATA_OUT:
 	ldi r22, 0xFF
 	sts PORTL, r24
 	sts DDRL,r22
+	sts PORTL, r24
 	ret
 
 ;uint16_t ADDR_HiZ();
@@ -86,6 +88,8 @@ ADDR_OUT:
 	sts PORTK, r25
 	sts DDRJ,r22
 	sts DDRK,r22
+	sts PORTJ, r24
+	sts PORTK, r25
 	ret
 	
 ; ================================================================================
