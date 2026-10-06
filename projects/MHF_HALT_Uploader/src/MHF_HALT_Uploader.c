@@ -202,6 +202,8 @@ TEXT void IHEX() {	// {{{
 				// vzhledem k X_SHARE_SELECT == 0 gates jsou OPEN, address smerem MHF->CPU, data dle X_READ (1=CPU->MHF)
 				// X_SHARE_COOP zde nepouzivame
 	// OK, jsme pripraveni zapisovat, pokud to bude potreba
+	// Ted kdyz mame pristup, tak na zaklade X_HALT ho budeme mit uz porad, takze X_SHARE_REQUEST muzeme pouzivat na primou manipulaci RAM.!CS, tedy ji odpojime a zapisy budeme delat povolovanin
+	X_SHARE_REQUEST_DOWN();
 	len = RX0_ReadHex8();
 	if (SkipLine(len,"Bad len")) return;
 	TX0_WriteHex8(len);
@@ -302,16 +304,20 @@ TEXT void IHEX() {	// {{{
 	for (uint16_t i=0; i<len;i++) {
 		ch = line_in[i];
 		// write ch to (ext_addr,addr) in RAM
-		X_READ_UP();	// safely set addr
 		ADDR_OUT(addr);
-		NOP();
-		NOP();
-		NOP();
 		X_READ_DOWN();	// write anything
-		NOP();
-		NOP();
-		NOP();
 		DATA_OUT(ch);	// write real data
+		X_SHARE_REQUEST_UP(); // RAM.CS activate
+		NOP();
+		NOP();
+		NOP();
+		NOP();
+		NOP();
+		NOP();
+		NOP();
+		NOP();
+		X_SHARE_REQUEST_DOWN(); // RAM.CS activate
+		NOP();
 		NOP();
 		NOP();
 		NOP();
