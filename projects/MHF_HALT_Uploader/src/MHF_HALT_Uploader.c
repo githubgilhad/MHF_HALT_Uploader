@@ -128,6 +128,41 @@ TEXT uint8_t SkipLine(uint16_t x, char *p) {	// {{{ if x > 0xFF, print *p, skip 
 }	// }}}
 uint16_t ext_addr;
 uint8_t line_in[256],line_check[256];
+TEXT void WriteByte(uint16_t eaddr, uint16_t addr, uint8_t dta) {	// {{{ zapise data na adresu
+	X_READ_UP();
+	if (eaddr) {
+		X_16_UP();
+	} else {
+		X_16_DOWN();
+	};
+	ADDR_OUT(addr);
+	X_READ_DOWN();	// write anything
+	DATA_OUT(dta);	// write real data
+	X_SHARE_REQUEST_UP(); // RAM.CS activate
+	NOP();
+	NOP();
+	X_SHARE_REQUEST_DOWN(); // RAM.CS activate
+	NOP();
+	NOP();
+	X_READ_UP();	// read back, safe conflict on bus
+	NOP();
+	NOP();
+	DATA_HiZ();
+	ADDR_HiZ();
+}	// }}}
+TEXT uint8_t ReadByte(uint16_t eaddr, uint16_t addr) {	// {{{ precte data z adresy
+	X_READ_UP();
+	if (eaddr) {
+		X_16_UP();
+	} else {
+		X_16_DOWN();
+	};
+		ADDR_OUT(addr);
+		NOP();
+		NOP();
+		NOP();
+		return DATA_IN();
+}	// }}}
 TEXT void help() {	// {{{
 	TX0_WriteStr("  --==## MHF_HALT_Uploader ##==--\r\n");
 	TX0_WriteStr("ver. " VERSION_STRING " from " BUILD_DATE " " BUILD_TIME  "\r\n");
@@ -266,11 +301,6 @@ TEXT void IHEX() {	// {{{
 	};
 	// jedina sance se dostat sem jsou 00 - Data
 	
-	if (ext_addr) {
-		X_16_UP();
-	} else {
-		X_16_DOWN();
-	};
 	crc_head=crc_data;
 	addr_saved=addr;
 	// read
@@ -303,48 +333,25 @@ TEXT void IHEX() {	// {{{
 	// write
 	for (uint16_t i=0; i<len;i++) {
 		ch = line_in[i];
-		// write ch to (ext_addr,addr) in RAM
-		ADDR_OUT(addr);
-		X_READ_DOWN();	// write anything
-		DATA_OUT(ch);	// write real data
-		X_SHARE_REQUEST_UP(); // RAM.CS activate
-		NOP();
-		NOP();
-		NOP();
-		NOP();
-		NOP();
-		NOP();
-		NOP();
-		NOP();
-		X_SHARE_REQUEST_DOWN(); // RAM.CS activate
-		NOP();
-		NOP();
-		NOP();
-		NOP();
-		X_READ_UP();	// read back, safe conflict on bus
-		DATA_HiZ();
-		ADDR_HiZ();
+		WriteByte(ext_addr,addr,ch); // write ch to (ext_addr,addr) in RAM
 		addr++;
 	};
 	TX0_Write('C');
 	TX0_Write(' ');
 	// check
 	X_READ_UP();
+	addr=addr_saved;
+	for (uint16_t i=0; i<len;i++) {
+		ch = ReadByte(ext_addr,addr);
+		line_check[i]=ch;
+		addr++;
+	};
 	crc_data=crc_head;
 	addr=addr_saved;
 	for (uint16_t i=0; i<len;i++) {
-		X_READ_UP();
-		ADDR_OUT(addr);
-		NOP();
-		NOP();
-		NOP();
-		ch = DATA_IN();
-		NOP();
-		NOP();
-		NOP();
+		ch=line_check[i];
 		TX0_WriteHex8(ch);
 		crc_data=(crc_data+ch) & 0xFF;
-		line_check[i]=ch;
 		addr++;
 	};
 	TX0_Write(' ');
